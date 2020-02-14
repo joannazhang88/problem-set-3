@@ -1,0 +1,194 @@
+---
+title: "PS3"
+author: "Joanna Zhang"
+date: "2/17/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+library(tree)
+library(ISLR)
+library(tidyverse)
+library(readr)
+library(gbm)
+library(randomForest)
+library(yardstick)
+library(broom)
+library(rcfss)
+library(e1071)
+```
+## Devision Trees
+### 1.
+```{r}
+set.seed(1234)
+nesdata <- read_csv("data/nes2008.csv")
+shrinkage <- seq(from = 0.0001, to = 0.04, by = 0.001)
+
+```
+
+### 2. Create training set
+```{r}
+train = sample(1:nrow(nesdata), size = 0.75*nrow(nesdata))
+```
+
+### 3. Boosting 
+```{r}
+trainingMSE <- vector()
+testingMSE <- vector()
+for (i in shrinkage){
+boost.nes <- gbm(biden ~ ., data = nesdata[train,],
+                    distribution="gaussian", n.trees=1000,
+                    shrinkage=i, interaction.depth = 4)
+trainpreds = predict(boost.nes, newdata = nesdata[train,],
+                  n.trees = 1000)
+testpreds = predict(boost.nes, newdata = nesdata[-train,],
+                  n.trees = 1000)
+trainmse <- with(nesdata[train,], lapply((trainpreds - biden)^2, mean)) %>% 
+  as.numeric() %>% 
+  mean()
+trainingMSE <-append(trainingMSE, trainmse)
+testmse <- with(nesdata[-train,], lapply((testpreds - biden)^2, mean)) %>% 
+  as.numeric() %>% 
+  mean()
+testingMSE <- append(testingMSE, testmse)
+}
+
+MSEdf <- data.frame(Shrinkage = shrinkage, TrainMSE = trainingMSE, TestMSE = testingMSE)
+
+MSEdf %>% ggplot() +
+  geom_point(aes(Shrinkage, TrainMSE, color = 'Train MSE'))+
+  geom_point(aes(Shrinkage, TestMSE, color = 'Test MSE'))+
+  theme_minimal()+
+  labs( y = "MSE", title = 'Test MSE & Train MSE vs. Shrinkage Values')
+
+```
+
+### 4.
+```{r}
+boost.nes <- gbm(biden ~ ., data = nesdata[train,],
+                    distribution="gaussian", n.trees=1000,
+                    shrinkage= 0.01, interaction.depth = 4)
+trainpreds = predict(boost.nes, newdata = nesdata[train,],
+                  n.trees = 1000)
+testpreds = predict(boost.nes, newdata = nesdata[-train,],
+                  n.trees = 1000)
+trainmse <- with(nesdata[train,], lapply((trainpreds - biden)^2, mean)) %>% 
+  as.numeric() %>% 
+  mean()
+testmse <- with(nesdata[-train,], lapply((testpreds - biden)^2, mean)) %>% 
+  as.numeric() %>% 
+  mean()
+
+trainmse
+testmse
+```
+
+### 5. Bagging
+```{r}
+library(rpart)
+library(ipred)
+bag <- bagging(biden ~ ., nbagg = 25, data = nesdata[train,], coob=T)
+print(bag)
+bag_pred <- predict(bag, newdata = nesdata[-train,])
+bag_mse <- mean((bag_pred - nesdata[-train,]$biden)^2)
+bag_mse
+```
+
+### 6. Random Forest
+```{r}
+rf <- randomForest(biden ~ .,data = nesdata,subset = train)
+rf
+
+rf_pred <- predict(rf, newdata = nesdata[-train,])
+rf_mse <- mean((rf_pred - nesdata[-train,]$biden)^2)
+rf_mse
+```
+
+### 7. Linear Regression
+```{r}
+linear_mod <- lm(biden ~., data = nesdata, subset = train)
+modmse <- augment(linear_mod, newdata = nesdata[-train,]) %>% 
+  mse(truth = biden, estimate = .fitted) 
+modmse
+```
+
+### 8. Discussion
+
+
+## Support Vector Machines
+### 1.
+```{r}
+data(OJ)
+train = sample(1:nrow(OJ), size = 800)
+trainOJ <- OJ[train,]
+testOJ <- OJ[-train,]
+```
+
+### 2.
+```{r}
+svmOJ <- svm(Purchase ~ ., data = trainOJ, 
+             kernel = "linear",  cost = 0.01, 
+             scale = FALSE)
+summary(svmOJ)
+```
+
+### 3.
+```{r}
+table(predicted = predict(svmOJ, newdata = testOJ), true = testOJ$Purchase)
+
+OJtrainpreds = predict(svmOJ, newdata = trainOJ)
+
+train_err <- trainOJ %>% 
+  mutate(estimate = OJtrainpreds) %>% 
+  accuracy(truth = Purchase, estimate = estimate)
+train_err<- 1 - train_err$.estimate[[1]]
+
+OJtestpreds = predict(svmOJ, newdata = testOJ)
+test_err <- testOJ %>% 
+  mutate(estimate = OJtestpreds) %>% 
+  accuracy(truth = Purchase, estimate = estimate)
+test_err<- 1 - test_err$.estimate[[1]]
+
+train_err
+test_err
+```
+
+### 4.
+```{r}
+tune_c <- tune(svm, Purchase ~ ., data = trainOJ, kernel = "radial",
+               ranges = list(cost = c(0.1, 1, 5, 10, 100, 1000)))
+summary(tune_c)
+tuned_best <- tune_c$best.model
+
+```
+
+### 5.
+```{r}
+optimal<- svmOJ <- svm(Purchase ~ ., data = trainOJ, 
+             kernel = "radial",  cost = 100, 
+             scale = FALSE)
+
+trainpreds_opt = predict(optimal, newdata = trainOJ)
+
+train_err_opt <- trainOJ %>% 
+  mutate(estimate = trainpreds_opt) %>% 
+  accuracy(truth = Purchase, estimate = estimate)
+train_err_opt <- 1 - train_err_opt$.estimate[[1]]
+
+testpreds_opt = predict(optimal, newdata = testOJ)
+test_err_opt <- testOJ %>% 
+  mutate(estimate = testpreds_opt) %>% 
+  accuracy(truth = Purchase, estimate = estimate)
+
+test_err_opt<- 1 - test_err_opt$.estimate[[1]]
+
+train_err_opt
+test_err_opt
+
+
+table(predicted = predict(optimal, newdata = testOJ), true = testOJ$Purchase)
+
+```
+
+
