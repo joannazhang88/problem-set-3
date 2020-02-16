@@ -24,11 +24,12 @@ library(e1071)
 set.seed(135)
 nesdata <- read_csv("data/nes2008.csv")
 shrinkage <- seq(from = 0.0001, to = 0.04, by = 0.001)
-p <- 5
+p <- ncol(nesdata) - 1
 ```
 
 ### 2. Create training set
 ```{r}
+
 train = sample(1:nrow(nesdata), size = 0.75*nrow(nesdata))
 ```
 
@@ -78,7 +79,7 @@ trainmse
 testmse
 ```
 
-When shrinkage is 0.01, we get a training MSE of 360 and a test MSE of 392. The test MSE we get from a shrinkage of 0.01 is not optimal, since the test MSE reaches its lowest point at a shrinkage of about 0.003. 
+When shrinkage is 0.01, we get a training MSE of 360 and a test MSE of 392. The training MSE is lower than MSE, and this is normal because the observations in the test set were not used to train the model. The test MSE we get from a shrinkage of 0.01 is not optimal, since the test MSE reaches its lowest point at a shrinkage of about 0.003. 
 
 
 ### 5. Bagging
@@ -92,6 +93,7 @@ bag_pred <- predict(bag, newdata = nesdata[-train,])
 bag_mse <- mean((bag_pred - nesdata[-train,]$biden)^2)
 bag_mse
 ```
+The bagging approach generates a MSE of 377.44.
 
 ### 6. Random Forest
 ```{r}
@@ -102,6 +104,7 @@ rf_pred <- predict(rf, newdata = nesdata[-train,])
 rf_mse <- mean((rf_pred - nesdata[-train,]$biden)^2)
 rf_mse
 ```
+The random forest model generates a MSE of 384.
 
 ### 7. Linear Regression
 ```{r}
@@ -110,15 +113,17 @@ modmse <- augment(linear_mod, newdata = nesdata[-train,]) %>%
   mse(truth = biden, estimate = .fitted) 
 modmse
 ```
+The random forest model generates a MSE of 378.
 
 ### 8. Discussion
 
-Of all the methods, linear regression produces the smallest test MSE, which implies that the linear regression model could be the best model. But note that the MSEs of the models may change once we reset the random process. It is possible that once we reset the seeds, the linear regression model no longer generates the lowest MSE.
+Of all the methods, the bagging model produces the smallest test MSE (377), which implies that the bagging model could be the best model. But note that the MSEs of the models may change once we reset the random process. It is possible that once we reset the seeds, the linear regression model no longer generates the lowest MSE. Additionally, the linear model generates an MSE of 378, which is very close to the MSE of the bagging model. For simplicity and better interpretation, the linear regression model could be more preferable than the bagging model.
 
 
 ## Support Vector Machines
 ### 1.
 ```{r}
+set.seed(135)
 data(OJ)
 train = sample(1:nrow(OJ), size = 800)
 trainOJ <- OJ[train,]
@@ -160,18 +165,18 @@ test_err
 ```{r}
 set.seed(123)
 tune_c <- tune(svm, Purchase ~ ., data = trainOJ, kernel = "linear",
-               ranges = list(cost = c(0.01, 0.1, 1, 5, 10, 100, 500, 1000)))
+               ranges = list(cost = c(0.01, 0.1, 1, 5, 10, 100, 1000)))
 summary(tune_c)
 tuned_best <- tune_c$best.model
 tuned_best
 ```
 
-The optimal cost is 10.
+The optimal cost is 1.
 
 ### 5.
 ```{r}
 optimal<- svmOJ <- svm(Purchase ~ ., data = trainOJ, 
-             kernel = "linear",  cost = 10, 
+             kernel = "linear",  cost = 1, 
              scale = FALSE)
 
 summary(optimal)
@@ -198,4 +203,4 @@ table(predicted = predict(optimal, newdata = testOJ), true = testOJ$Purchase)
 
 ```
 
-The train error and the test error using the optimal cost are 17.8% and 14.4%, respectively. Compared to the previous classifiers, the optimal classifier produces smaller test and training errors. We have improved the test error by about 6%. And compared to the classifier with cost = 0.01, the optimal classifier has more Citrus Hill misclassified as Minute Maid, but less Minute Maid misclassified as Citrus Hill.
+The train error and the test error using the optimal cost are 17% and 14%, respectively. Compared to the previous classifiers, the optimal classifier produces smaller test and training errors. We have improved the test error by about 8%. I think an improvement of 8% is pretty significant. But note that compared to the classifier with cost = 0.01, the optimal classifier has more Citrus Hill misclassified as Minute Maid, but less Minute Maid misclassified as Citrus Hill.
