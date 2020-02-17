@@ -29,7 +29,7 @@ p <- ncol(nesdata) - 1
 
 ### 2. Create training set
 ```{r}
-
+# ramdomly select 75% of the observations
 train = sample(1:nrow(nesdata), size = 0.75*nrow(nesdata))
 ```
 
@@ -37,6 +37,7 @@ train = sample(1:nrow(nesdata), size = 0.75*nrow(nesdata))
 ```{r}
 trainingMSE <- vector()
 testingMSE <- vector()
+# loop over all lamda values
 for (i in shrinkage){
 boost.nes <- gbm(biden ~ ., data = nesdata[train,],
                     distribution="gaussian", n.trees=1000,
@@ -47,7 +48,7 @@ testpreds = predict(boost.nes, newdata = nesdata[-train,],
                   n.trees = 1000)
 trainmse <-  mean((trainpreds - nesdata[train,]$biden)^2)
 testmse <-  mean((testpreds - nesdata[-train,]$biden)^2)
-
+# store the MSEs in a vector
 trainingMSE <-append(trainingMSE, trainmse)
 testingMSE <- append(testingMSE, testmse)
 }
@@ -79,7 +80,7 @@ trainmse
 testmse
 ```
 
-When shrinkage is 0.01, we get a training MSE of 360 and a test MSE of 392. The training MSE is lower than MSE, and this is normal because the observations in the test set were not used to train the model. The test MSE we get from a shrinkage of 0.01 is not optimal. As we see in the graph in (3), the test MSE reaches its lowest point at a shrinkage of about 0.003. 
+When shrinkage is 0.01, we get a training MSE of 360 and a test MSE of 392. The training MSE is lower than MSE, and this is normal because the observations in the test set were not used to train the model. The test MSE we get from a shrinkage of 0.01 is not optimal. As we see in the graph in (3), the test MSE reaches its lowest point at a shrinkage of about 0.003. Also the test MSE is pretty stable when lamda is between 0.002 and 0.1, this implies that the test MSE is not so sensitive to small lamda values. 
 
 
 ### 5. Bagging
